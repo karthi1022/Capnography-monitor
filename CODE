@@ -1,0 +1,103 @@
+#include <MCUFRIEND_kbv.h>
+#include <Adafruit_GFX.h>
+
+MCUFRIEND_kbv tft;
+
+// ---- Pins ----
+#define HEART_PIN A0
+
+// ---- Variables ----
+int bpm = 0;
+int signal;
+
+float t = 0;
+int x = 0;
+
+void setup() {
+  Serial.begin(9600);
+
+  uint16_t ID = tft.readID();
+  if (ID == 0xD3D3) ID = 0x9486; // Force ILI9486
+  tft.begin(ID);
+  tft.setRotation(1);
+
+  tft.fillScreen(0x0000);
+
+  drawUI();
+}
+
+void loop() {
+
+  // -------- HEART RATE (REAL) --------
+  signal = analogRead(HEART_PIN);
+
+  // Simple BPM approximation
+  bpm = map(signal, 500, 700, 60, 110);
+  bpm = constrain(bpm, 60, 120);
+
+  // --------  ETCO2 WAVE --------
+  float co2;
+  float phase = fmod(t, 6.28);
+
+  if (phase < 1.0) {
+    co2 = 5 + phase * 30;              // rise
+  } 
+  else if (phase < 3.5) {
+    co2 = 35 + sin(phase) * 2;         // plateau
+  } 
+  else if (phase < 4.2) {
+    co2 = 35 - (phase - 3.5) * 50;     // drop
+  } 
+  else {
+    co2 = 5 + random(0, 2);            // baseline
+  }
+
+  // -------- DRAW GRAPH --------
+  int y = map(co2, 0, 50, 300, 200);
+
+  tft.drawPixel(x, y, 0xFFE0); // yellow wave
+
+  x++;
+  if (x > 480) {
+    x = 0;
+    tft.fillRect(0, 200, 480, 120, 0x0000);
+  }
+
+  // -------- DISPLAY VALUES --------
+  tft.fillRect(280, 40, 180, 100, 0x0000);
+
+  // Heart Rate
+  tft.setTextColor(0x07E0);
+  tft.setTextSize(3);
+  tft.setCursor(280, 50);
+  tft.print("BPM:");
+  tft.print(bpm);
+
+  // CO2
+  tft.setTextColor(0xFFE0);
+  tft.setCursor(280, 100);
+  tft.print("CO2:");
+  tft.print((int)co2);
+
+  // -------- UPDATE --------
+  t += 0.08;
+  delay(60);
+}
+
+// ---- UI Layout ----
+void drawUI() {
+
+  tft.setTextColor(0xFFFF);
+  tft.setTextSize(2);
+  tft.setCursor(10, 10);
+  tft.print("Medical Monitor");
+
+  // Graph box
+  tft.drawRect(0, 200, 480, 120, 0xFFFF);
+
+  tft.setCursor(10, 180);
+  tft.print("ETCO2 Wave");
+
+  tft.setCursor(300, 20);
+  tft.print("Vitals");
+}
